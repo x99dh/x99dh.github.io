@@ -1,0 +1,42 @@
+# 上游地址只写在仓库根目录 source.url。x99dh.cc 变更后改那一行，再运行本工作流。
+name: Sync from source.url
+
+on:
+  schedule:
+    - cron: "20 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download current homepage
+        run: |
+          set -euo pipefail
+          source_url="$(grep -v '^[[:space:]]*#' source.url | grep -v '^[[:space:]]*$' | head -n 1 | tr -d '[:space:]')"
+          test -n "$source_url"
+          echo "Source: $source_url"
+          curl -sS -L --compressed \
+            -A "Mozilla/5.0" \
+            -H "Accept: text/html" \
+            -o index.html \
+            "$source_url"
+          grep -q "X99资源导航" index.html
+          grep -q "sites-grid" index.html
+
+      - name: Commit when the page changed
+        run: |
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Sync homepage from source.url"
+          git push
